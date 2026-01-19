@@ -2,7 +2,7 @@ using UnityEngine;
 
 public class ReturnTrap : MonoBehaviour
 {
-    [Header("References")]
+    [Header("Required References")]
     [SerializeField] private PlayerController player;
 
     [Header("Settings")]
@@ -11,18 +11,19 @@ public class ReturnTrap : MonoBehaviour
     private SpriteRenderer spriteRenderer;
     private Collider2D col;
 
-    void Start()
+    void Awake()
     {
-        // Trouve le joueur si non assigné
-        if (player == null)
-        {
-            player = FindFirstObjectByType<PlayerController>();
-        }
-
         spriteRenderer = GetComponent<SpriteRenderer>();
         col = GetComponent<Collider2D>();
+    }
 
-        // Désactive au départ si c'est un piège de retour
+    void Start()
+    {
+        if (player == null)
+        {
+            Debug.LogError("ReturnTrap: Player reference is missing! Please assign it in the Inspector.");
+        }
+
         if (activeOnlyOnReturn)
         {
             SetActive(false);
@@ -33,13 +34,9 @@ public class ReturnTrap : MonoBehaviour
     {
         if (player == null) return;
 
-        // Active le piège uniquement quand le joueur a la clé
-        if (activeOnlyOnReturn)
+        if (activeOnlyOnReturn && player.HasKey())
         {
-            if (player.HasKey())
-            {
-                SetActive(true);
-            }
+            SetActive(true);
         }
     }
 

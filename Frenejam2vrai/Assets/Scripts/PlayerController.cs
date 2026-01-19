@@ -2,11 +2,21 @@ using UnityEngine;
 
 public class PlayerController : MonoBehaviour
 {
+    [Header("Dash Settings")]
+    [SerializeField] private float dashSpeed = 18f;
+    [SerializeField] private float dashDuration = 0.3f;
+    [SerializeField] private float dashCooldown = 0.5f;
+    [SerializeField] private float airDashCooldown = 0.8f;
+
+    [Header("Jump Settings")]
+    [SerializeField] private float normalJumpForce = 13f;
+    [SerializeField] private float dashJumpForceMultiplier = 1.7f;
+    [SerializeField] private float dashJumpHorizontalBoost = 8f;
+
     [Header("Movement Settings")]
-    [SerializeField] private float moveSpeed = 5f;
-    [SerializeField] private float jumpForce = 12f;
-    [SerializeField] private float fastFallSpeed = 15f;
-    [SerializeField] private float airDrag = 0.98f;
+    [SerializeField] private float airDrag = 0.95f;
+    [SerializeField] private float groundDrag = 0.85f;
+    [SerializeField] private float fastFallSpeed = 18f;
 
     [Header("Ground Check")]
     [SerializeField] private Transform groundCheck;
@@ -16,16 +26,25 @@ public class PlayerController : MonoBehaviour
     [Header("Crouch Settings")]
     [SerializeField] private float crouchScaleY = 0.5f;
     [SerializeField] private float crouchColliderHeight = 0.5f;
+    [SerializeField] private float crouchHoldTime = 0.2f;
 
-    // Components
+    [Header("Visual Feedback")]
+    [SerializeField] private Color normalColor = Color.cyan;
+    [SerializeField] private Color dashColor = Color.white;
+    [SerializeField] private Color keyColor = Color.yellow;
+
+    // Components (cached in Awake)
     private Rigidbody2D rb;
     private BoxCollider2D boxCollider;
     private SpriteRenderer spriteRenderer;
+    private TrailRenderer trailRenderer;
 
     // State
     private bool isGrounded;
-    private bool isMoving = false;
+    private bool isDashing = false;
     private bool isCrouching = false;
+    private float dashTimer = 0f;
+    private float dashCooldownTimer = 0f;
     private int movementDirection = 1; // 1 = droite, -1 = gauche
     private bool hasKey = false;
 
@@ -34,22 +53,30 @@ public class PlayerController : MonoBehaviour
     private float originalColliderHeight;
     private Vector2 originalColliderOffset;
 
-    // Input
+    // Input tracking
     private bool spacePressed;
     private bool spaceHeld;
-    private bool wasSpacePressedLastFrame;
+    private float spaceHeldTime = 0f;
 
-    void Start()
+    // Dash jump detection
+    private bool canDashJump = false;
+
+    void Awake()
     {
+        // Cache all components
         rb = GetComponent<Rigidbody2D>();
         boxCollider = GetComponent<BoxCollider2D>();
         spriteRenderer = GetComponent<SpriteRenderer>();
+        trailRenderer = GetComponent<TrailRenderer>();
+    }
 
+    void Start()
+    {
         // Create ground check if not assigned
         if (groundCheck == null)
         {
             GameObject groundCheckObj = new GameObject("GroundCheck");
-            groundCheckObj.transform.parent = transform;
+            groundCheckObj.transform.SetParent(transform, false);
             groundCheckObj.transform.localPosition = new Vector3(0, -0.5f, 0);
             groundCheck = groundCheckObj.transform;
         }
@@ -64,91 +91,163 @@ public class PlayerController : MonoBehaviour
         {
             groundLayer = LayerMask.GetMask("Default");
         }
+
+        // Set initial color
+        if (spriteRenderer != null)
+        {
+            spriteRenderer.color = normalColor;
+        }
+
+        // Configure trail
+        if (trailRenderer != null)
+        {
+            trailRenderer.emitting = false;
+        }
     }
 
     void Update()
     {
         HandleInput();
         CheckGround();
-        HandleMovementToggle();
+        UpdateTimers();
         HandleCrouch();
+        HandleDashInput();
+        UpdateVisuals();
     }
 
     void FixedUpdate()
     {
+        HandleDash();
         HandleMovement();
-        HandleJumpAndFall();
+        HandleFastFall();
     }
 
     void HandleInput()
     {
-        // Detect space press (one frame only)
         spacePressed = Input.GetKeyDown(KeyCode.Space);
         spaceHeld = Input.GetKey(KeyCode.Space);
 
-        // Track if space was pressed last frame
-        if (spacePressed)
+        if (spaceHeld)
         {
-            wasSpacePressedLastFrame = true;
+            spaceHeldTime += Time.deltaTime;
         }
-        else if (Input.GetKeyUp(KeyCode.Space))
+        else
         {
-            wasSpacePressedLastFrame = false;
+            spaceHeldTime = 0f;
         }
     }
 
     void CheckGround()
     {
+        bool wasGrounded = isGrounded;
         isGrounded = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundLayer);
+
+        if (isGrounded && !wasGrounded)
+        {
+            dashCooldownTimer = 0f;
+        }
     }
 
-    void HandleMovementToggle()
+    void UpdateTimers()
     {
-        // Toggle entre déplacement et saut avec la touche espace
-        if (spacePressed && isGrounded && !isCrouching)
+        if (dashTimer > 0)
         {
-            if (!isMoving)
+            dashTimer -= Time.deltaTime;
+            if (dashTimer <= 0)
             {
-                // Active le déplacement
-                isMoving = true;
-            }
-            else
-            {
-                // Saute
-                Jump();
-                isMoving = false; // On arrête le déplacement quand on saute
+                EndDash();
             }
         }
+
+        if (dashCooldownTimer > 0)
+        {
+            dashCooldownTimer -= Time.deltaTime;
+        }
+    }
+
+    void HandleDashInput()
+    {
+        if (spaceHeldTime >= crouchHoldTime && isGrounded && !isDashing)
+        {
+            return;
+        }
+
+        if (spacePressed && !isCrouching)
+        {
+            if (isDashing && isGrounded && canDashJump)
+            {
+                DashJump();
+            }
+            else if (CanDash())
+            {
+                StartDash();
+            }
+        }
+    }
+
+    bool CanDash()
+    {
+        return dashCooldownTimer <= 0f;
+    }
+
+    void StartDash()
+    {
+        isDashing = true;
+        dashTimer = dashDuration;
+        canDashJump = isGrounded;
+
+        dashCooldownTimer = isGrounded ? dashCooldown : airDashCooldown;
+
+        float currentYVelocity = rb.linearVelocity.y;
+        rb.linearVelocity = new Vector2(dashSpeed * movementDirection, currentYVelocity);
+
+        if (trailRenderer != null)
+        {
+            trailRenderer.emitting = true;
+        }
+    }
+
+    void HandleDash()
+    {
+        if (isDashing)
+        {
+            rb.linearVelocity = new Vector2(dashSpeed * movementDirection, rb.linearVelocity.y);
+        }
+    }
+
+    void EndDash()
+    {
+        isDashing = false;
+        canDashJump = false;
+
+        if (trailRenderer != null)
+        {
+            trailRenderer.emitting = false;
+        }
+    }
+
+    void DashJump()
+    {
+        float jumpForce = normalJumpForce * dashJumpForceMultiplier;
+        float horizontalBoost = dashJumpHorizontalBoost * movementDirection;
+
+        rb.linearVelocity = new Vector2(rb.linearVelocity.x + horizontalBoost, jumpForce);
+
+        EndDash();
     }
 
     void HandleMovement()
     {
-        if (isMoving && isGrounded && !isCrouching)
+        if (!isDashing && !isCrouching)
         {
-            // Déplacement horizontal
-            rb.linearVelocity = new Vector2(moveSpeed * movementDirection, rb.linearVelocity.y);
-        }
-        else if (!isGrounded)
-        {
-            // Dans les airs, on conserve la vélocité mais avec un drag
-            rb.linearVelocity = new Vector2(rb.linearVelocity.x * airDrag, rb.linearVelocity.y);
-        }
-        else if (!isMoving && isGrounded)
-        {
-            // Arrêt progressif au sol
-            rb.linearVelocity = new Vector2(rb.linearVelocity.x * 0.8f, rb.linearVelocity.y);
+            float drag = isGrounded ? groundDrag : airDrag;
+            rb.linearVelocity = new Vector2(rb.linearVelocity.x * drag, rb.linearVelocity.y);
         }
     }
 
-    void Jump()
+    void HandleFastFall()
     {
-        rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
-    }
-
-    void HandleJumpAndFall()
-    {
-        // Fast fall : maintenir espace en l'air fait tomber plus vite
-        if (spaceHeld && !isGrounded && rb.linearVelocity.y < 0)
+        if (spaceHeld && !isGrounded && rb.linearVelocity.y < 0 && !isDashing)
         {
             rb.linearVelocity = new Vector2(rb.linearVelocity.x, -fastFallSpeed);
         }
@@ -156,8 +255,7 @@ public class PlayerController : MonoBehaviour
 
     void HandleCrouch()
     {
-        // S'accroupir : maintenir espace au sol
-        if (spaceHeld && isGrounded && !isMoving)
+        if (spaceHeldTime >= crouchHoldTime && isGrounded && !isDashing)
         {
             if (!isCrouching)
             {
@@ -177,12 +275,10 @@ public class PlayerController : MonoBehaviour
     {
         isCrouching = true;
 
-        // Réduit la taille du joueur
         Vector3 scale = transform.localScale;
         scale.y = originalScaleY * crouchScaleY;
         transform.localScale = scale;
 
-        // Ajuste le collider
         Vector2 size = boxCollider.size;
         size.y = crouchColliderHeight;
         boxCollider.size = size;
@@ -191,13 +287,11 @@ public class PlayerController : MonoBehaviour
         offset.y = -(originalColliderHeight - crouchColliderHeight) / 2f;
         boxCollider.offset = offset;
 
-        // Stop le mouvement
         rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
     }
 
     void StandUp()
     {
-        // Vérifie s'il y a de la place pour se relever
         RaycastHit2D hit = Physics2D.BoxCast(
             transform.position,
             new Vector2(boxCollider.size.x, originalColliderHeight),
@@ -211,36 +305,42 @@ public class PlayerController : MonoBehaviour
         {
             isCrouching = false;
 
-            // Restaure la taille
             Vector3 scale = transform.localScale;
             scale.y = originalScaleY;
             transform.localScale = scale;
 
-            // Restaure le collider
             boxCollider.size = new Vector2(boxCollider.size.x, originalColliderHeight);
             boxCollider.offset = originalColliderOffset;
         }
     }
 
+    void UpdateVisuals()
+    {
+        if (spriteRenderer == null) return;
+
+        if (hasKey)
+        {
+            spriteRenderer.color = keyColor;
+        }
+        else if (isDashing)
+        {
+            spriteRenderer.color = dashColor;
+        }
+        else
+        {
+            spriteRenderer.color = normalColor;
+        }
+    }
+
     void OnTriggerEnter2D(Collider2D other)
     {
-        // Ramasse la clé
         if (other.CompareTag("Key") && !hasKey)
         {
             hasKey = true;
-            movementDirection = -1; // Inverse la direction (retour)
+            movementDirection = -1;
             other.gameObject.SetActive(false);
-
-            // Change la couleur du joueur pour indiquer qu'il a la clé
-            if (spriteRenderer != null)
-            {
-                spriteRenderer.color = Color.yellow;
-            }
-
-            Debug.Log("Clé récupérée ! Retour à la base... Bonne chance !");
         }
 
-        // Mort sur piège
         if (other.CompareTag("Trap"))
         {
             Die();
@@ -249,14 +349,11 @@ public class PlayerController : MonoBehaviour
 
     void Die()
     {
-        Debug.Log("Mort ! Rechargement du niveau...");
-        // Recharge la scène
         UnityEngine.SceneManagement.SceneManager.LoadScene(
             UnityEngine.SceneManagement.SceneManager.GetActiveScene().name
         );
     }
 
-    // Visualisation du ground check
     void OnDrawGizmosSelected()
     {
         if (groundCheck != null)
@@ -266,7 +363,9 @@ public class PlayerController : MonoBehaviour
         }
     }
 
-    // Getters publics pour le GameManager
+    // Public getters
     public bool HasKey() => hasKey;
     public int GetDirection() => movementDirection;
+    public bool IsDashing() => isDashing;
+    public float GetDashCooldown() => dashCooldownTimer;
 }
