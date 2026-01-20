@@ -2,6 +2,10 @@ using UnityEngine;
 
 public class PlayerController : MonoBehaviour
 {
+    [Header("Movement Settings")]
+    [SerializeField] private float runSpeed = 8f;
+    [SerializeField] private float crouchSpeedMultiplier = 0.6f;
+
     [Header("Dash Settings")]
     [SerializeField] private float dashSpeed = 18f;
     [SerializeField] private float dashDuration = 0.3f;
@@ -13,9 +17,8 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float dashJumpForceMultiplier = 1.7f;
     [SerializeField] private float dashJumpHorizontalBoost = 8f;
 
-    [Header("Movement Settings")]
+    [Header("Air Control")]
     [SerializeField] private float airDrag = 0.95f;
-    [SerializeField] private float groundDrag = 0.85f;
     [SerializeField] private float fastFallSpeed = 18f;
 
     [Header("Ground Check")]
@@ -32,8 +35,9 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private Color normalColor = Color.cyan;
     [SerializeField] private Color dashColor = Color.white;
     [SerializeField] private Color keyColor = Color.yellow;
+    [SerializeField] private Camera mainCamera;
 
-    // Components (cached in Awake)
+    // Components
     private Rigidbody2D rb;
     private BoxCollider2D boxCollider;
     private SpriteRenderer spriteRenderer;
@@ -45,7 +49,7 @@ public class PlayerController : MonoBehaviour
     private bool isCrouching = false;
     private float dashTimer = 0f;
     private float dashCooldownTimer = 0f;
-    private int movementDirection = 1; // 1 = droite, -1 = gauche
+    private int movementDirection = 1;
     private bool hasKey = false;
 
     // Original values
@@ -53,26 +57,31 @@ public class PlayerController : MonoBehaviour
     private float originalColliderHeight;
     private Vector2 originalColliderOffset;
 
-    // Input tracking
+    // Input
     private bool spacePressed;
+    private bool spaceReleased;
     private bool spaceHeld;
     private float spaceHeldTime = 0f;
-
-    // Dash jump detection
     private bool canDashJump = false;
+
+    // Pour éviter dash après crouch
+    private bool hasTriedToCrouch = false;
 
     void Awake()
     {
-        // Cache all components
         rb = GetComponent<Rigidbody2D>();
         boxCollider = GetComponent<BoxCollider2D>();
         spriteRenderer = GetComponent<SpriteRenderer>();
         trailRenderer = GetComponent<TrailRenderer>();
+
+        if (mainCamera == null)
+        {
+            mainCamera = Camera.main;
+        }
     }
 
     void Start()
     {
-        // Create ground check if not assigned
         if (groundCheck == null)
         {
             GameObject groundCheckObj = new GameObject("GroundCheck");
@@ -81,24 +90,20 @@ public class PlayerController : MonoBehaviour
             groundCheck = groundCheckObj.transform;
         }
 
-        // Store original values
         originalScaleY = transform.localScale.y;
         originalColliderHeight = boxCollider.size.y;
         originalColliderOffset = boxCollider.offset;
 
-        // Set ground layer if not set
         if (groundLayer == 0)
         {
             groundLayer = LayerMask.GetMask("Default");
         }
 
-        // Set initial color
         if (spriteRenderer != null)
         {
             spriteRenderer.color = normalColor;
         }
 
-        // Configure trail
         if (trailRenderer != null)
         {
             trailRenderer.emitting = false;
@@ -125,15 +130,20 @@ public class PlayerController : MonoBehaviour
     void HandleInput()
     {
         spacePressed = Input.GetKeyDown(KeyCode.Space);
+        spaceReleased = Input.GetKeyUp(KeyCode.Space);
         spaceHeld = Input.GetKey(KeyCode.Space);
 
+        // Incrément du timer seulement si maintenu
         if (spaceHeld)
         {
             spaceHeldTime += Time.deltaTime;
         }
-        else
+
+        // Reset complet quand on relâche
+        if (spaceReleased)
         {
             spaceHeldTime = 0f;
+            hasTriedToCrouch = false;
         }
     }
 
@@ -165,19 +175,45 @@ public class PlayerController : MonoBehaviour
         }
     }
 
+    void HandleCrouch()
+    {
+        // Détecte si on veut crouch
+        if (spaceHeldTime >= crouchHoldTime && isGrounded && !isDashing)
+        {
+            hasTriedToCrouch = true;
+
+            if (!isCrouching)
+            {
+                Crouch();
+            }
+        }
+        else
+        {
+            // Sort du crouch seulement si on relâche ou qu'on n'est plus au sol
+            if (isCrouching && (!spaceHeld || !isGrounded))
+            {
+                StandUp();
+            }
+        }
+    }
+
     void HandleDashInput()
     {
-        if (spaceHeldTime >= crouchHoldTime && isGrounded && !isDashing)
+        // Si on maintient pour crouch, pas de dash
+        if (hasTriedToCrouch || spaceHeldTime >= crouchHoldTime)
         {
             return;
         }
 
+        // Dash seulement sur appui court (pas maintenu)
         if (spacePressed && !isCrouching)
         {
+            // Dash jump si on dash au sol
             if (isDashing && isGrounded && canDashJump)
             {
                 DashJump();
             }
+            // Dash normal
             else if (CanDash())
             {
                 StartDash();
@@ -238,36 +274,33 @@ public class PlayerController : MonoBehaviour
 
     void HandleMovement()
     {
-        if (!isDashing && !isCrouching)
+        if (isDashing)
         {
-            float drag = isGrounded ? groundDrag : airDrag;
-            rb.linearVelocity = new Vector2(rb.linearVelocity.x * drag, rb.linearVelocity.y);
+            return;
+        }
+
+        // Course constante au sol
+        if (isGrounded)
+        {
+            float currentSpeed = isCrouching ? runSpeed * crouchSpeedMultiplier : runSpeed;
+            float targetX = currentSpeed * movementDirection;
+
+            // Applique directement sans interpolation
+            rb.linearVelocity = new Vector2(targetX, rb.linearVelocity.y);
+        }
+        else
+        {
+            // En l'air : conserve la vélocité avec drag
+            float newX = rb.linearVelocity.x * airDrag;
+            rb.linearVelocity = new Vector2(newX, rb.linearVelocity.y);
         }
     }
 
     void HandleFastFall()
     {
-        if (spaceHeld && !isGrounded && rb.linearVelocity.y < 0 && !isDashing)
+        if (spaceHeld && !isGrounded && rb.linearVelocity.y < 0 && !isDashing && !hasTriedToCrouch)
         {
             rb.linearVelocity = new Vector2(rb.linearVelocity.x, -fastFallSpeed);
-        }
-    }
-
-    void HandleCrouch()
-    {
-        if (spaceHeldTime >= crouchHoldTime && isGrounded && !isDashing)
-        {
-            if (!isCrouching)
-            {
-                Crouch();
-            }
-        }
-        else
-        {
-            if (isCrouching)
-            {
-                StandUp();
-            }
         }
     }
 
@@ -286,21 +319,24 @@ public class PlayerController : MonoBehaviour
         Vector2 offset = boxCollider.offset;
         offset.y = -(originalColliderHeight - crouchColliderHeight) / 2f;
         boxCollider.offset = offset;
-
-        rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
     }
 
     void StandUp()
     {
+        // Vérifie s'il y a de la place
+        Vector2 checkSize = new Vector2(boxCollider.size.x * 0.9f, originalColliderHeight);
+        Vector2 checkPosition = new Vector2(transform.position.x, transform.position.y);
+
         RaycastHit2D hit = Physics2D.BoxCast(
-            transform.position,
-            new Vector2(boxCollider.size.x, originalColliderHeight),
+            checkPosition,
+            checkSize,
             0f,
             Vector2.up,
-            0.1f,
+            0.01f,
             groundLayer
         );
 
+        // Se relève seulement s'il n'y a pas d'obstacle
         if (hit.collider == null)
         {
             isCrouching = false;
@@ -339,10 +375,18 @@ public class PlayerController : MonoBehaviour
             hasKey = true;
             movementDirection = -1;
             other.gameObject.SetActive(false);
+
+            if (mainCamera != null)
+            {
+                mainCamera.backgroundColor = new Color(0.3f, 0f, 0f);
+            }
+
+            Debug.Log("Clé récupérée ! Direction inversée !");
         }
 
         if (other.CompareTag("Trap"))
         {
+            Debug.Log("Piège touché ! Rechargement...");
             Die();
         }
     }
@@ -363,7 +407,6 @@ public class PlayerController : MonoBehaviour
         }
     }
 
-    // Public getters
     public bool HasKey() => hasKey;
     public int GetDirection() => movementDirection;
     public bool IsDashing() => isDashing;
