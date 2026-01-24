@@ -27,7 +27,6 @@ public class ReturnTrap : MonoBehaviour
             Debug.LogError("ReturnTrap nécessite un PolygonCollider2D !", this);
         }
 
-        // Vérifier le tag
         if (!gameObject.CompareTag("Trap"))
         {
             Debug.LogWarning("ReturnTrap devrait avoir le tag 'Trap' !", this);
@@ -38,7 +37,6 @@ public class ReturnTrap : MonoBehaviour
     {
         if (activeOnlyOnReturn)
         {
-            // Désactiver complètement au début
             SetActive(false);
         }
         else
@@ -49,8 +47,7 @@ public class ReturnTrap : MonoBehaviour
 
     private void Update()
     {
-        // Activer uniquement si le joueur a la clé
-        if (activeOnlyOnReturn && player != null && player.HasKey && !isActive)
+        if (activeOnlyOnReturn && player != null && player.HasKey() && !isActive)
         {
             SetActive(true);
             Debug.Log($"ReturnTrap {gameObject.name} ACTIVÉ car le joueur a la clé !");

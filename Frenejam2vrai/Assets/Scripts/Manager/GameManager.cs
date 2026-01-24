@@ -17,16 +17,10 @@ public class GameManager : MonoBehaviour
     [SerializeField] private string returnInstructions = "RETOUR ! Direction inversée - Survivez si vous pouvez...";
     [SerializeField] private string waitingAfterKeyInstructions = "ESPACE : Reprendre la course vers le départ...";
 
-    //[Header("Cooldown Settings")]
-    //[SerializeField] private float maxCooldownDisplay = 0.8f;
-    //[SerializeField] private Color cooldownActiveColor = Color.red;
-    //[SerializeField] private Color cooldownReadyColor = Color.green;
-
     private void Update()
     {
         UpdateInstructions();
         UpdateStatus();
-        //UpdateCooldownBar();
     }
 
     private void UpdateInstructions()
@@ -41,7 +35,7 @@ public class GameManager : MonoBehaviour
         {
             instructionsText.text = waitingAfterKeyInstructions;
         }
-        else if (playerMovement.HasKey)
+        else if (playerMovement.HasKey())
         {
             instructionsText.text = returnInstructions;
         }
@@ -63,7 +57,7 @@ public class GameManager : MonoBehaviour
         {
             statusText.text = "CLÉ RÉCUPÉRÉE ! Appuyez sur ESPACE pour retourner au départ";
         }
-        else if (playerMovement.HasKey)
+        else if (playerMovement.HasKey())
         {
             statusText.text = "RETOUR AU DÉPART - SURVIVEZ !";
         }
@@ -73,15 +67,3 @@ public class GameManager : MonoBehaviour
         }
     }
 }
-
-//    private void UpdateCooldownBar()
-//    {
-//        if (dashCooldownBar == null) return;
-
-//        float cooldown = playerDash.CooldownTimer;
-//        float fillAmount = 1f - Mathf.Clamp01(cooldown / maxCooldownDisplay);
-
-//        dashCooldownBar.fillAmount = fillAmount;
-//        dashCooldownBar.color = cooldown > 0f ? cooldownActiveColor : cooldownReadyColor;
-//    }
-//}

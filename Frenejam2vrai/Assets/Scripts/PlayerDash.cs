@@ -42,12 +42,12 @@ public class PlayerDash : MonoBehaviour
         if (trailRenderer != null)
             trailRenderer.emitting = false;
 
-        originalColor = spriteRenderer.color;
+        if (spriteRenderer != null)
+            originalColor = spriteRenderer.color;
     }
 
     private void Update()
     {
-        // Mettre à jour les timers
         if (cooldownTimer > 0f)
         {
             cooldownTimer -= Time.deltaTime;
@@ -62,13 +62,11 @@ public class PlayerDash : MonoBehaviour
             }
         }
 
-        // Gérer les inputs
         HandleInput();
     }
 
     private void HandleInput()
     {
-        // Premier dash pour démarrer
         if (!playerMovement.IsRunning && Input.GetKeyDown(KeyCode.Space))
         {
             PerformDash();
@@ -76,7 +74,6 @@ public class PlayerDash : MonoBehaviour
             return;
         }
 
-        // Reprise après récupération de clé
         if (playerMovement.IsWaitingAfterKey && Input.GetKeyDown(KeyCode.Space))
         {
             playerMovement.ResumeAfterKey();
@@ -85,14 +82,12 @@ public class PlayerDash : MonoBehaviour
 
         if (!playerMovement.IsRunning || playerMovement.IsWaitingAfterKey) return;
 
-        // Dash jump - Appui pendant un dash au sol
         if (isDashing && wasGroundedOnDash && Input.GetKeyDown(KeyCode.Space))
         {
             PerformDashJump();
             return;
         }
 
-        // Dash normal
         if (Input.GetKeyDown(KeyCode.Space) && cooldownTimer <= 0f && !isDashing)
         {
             PerformDash();
@@ -103,39 +98,35 @@ public class PlayerDash : MonoBehaviour
     {
         isDashing = true;
         dashTimer = dashDuration;
-        wasGroundedOnDash = playerMovement.IsGrounded;
+        wasGroundedOnDash = playerMovement.CheckIsGrounded();
 
-        // Appliquer la vitesse de dash
         rb.linearVelocity = new Vector2(dashSpeed * playerMovement.Direction, rb.linearVelocity.y);
 
-        // Effets visuels
         if (trailRenderer != null)
             trailRenderer.emitting = true;
 
-        originalColor = spriteRenderer.color;
-        spriteRenderer.color = dashColor;
+        if (spriteRenderer != null)
+        {
+            originalColor = spriteRenderer.color;
+            spriteRenderer.color = dashColor;
+        }
 
-        // Son
         if (audioManager != null)
             audioManager.PlayDashSound();
     }
 
     private void PerformDashJump()
     {
-        // Appliquer le saut propulsé
         float jumpForce = normalJumpForce * dashJumpForceMultiplier;
         rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
 
-        // Boost horizontal supplémentaire
         rb.linearVelocity = new Vector2(
             rb.linearVelocity.x + (dashJumpHorizontalBoost * playerMovement.Direction),
             rb.linearVelocity.y
         );
 
-        // Terminer le dash
         EndDash();
 
-        // Son
         if (audioManager != null)
             audioManager.PlayJumpSound();
     }
@@ -144,16 +135,14 @@ public class PlayerDash : MonoBehaviour
     {
         isDashing = false;
 
-        // Définir le cooldown approprié
         cooldownTimer = wasGroundedOnDash ? dashCooldown : airDashCooldown;
 
-        // Effets visuels
         if (trailRenderer != null)
             trailRenderer.emitting = false;
 
-        spriteRenderer.color = originalColor;
+        if (spriteRenderer != null)
+            spriteRenderer.color = originalColor;
 
-        // Appliquer boost horizontal au saut normal
         if (!wasGroundedOnDash)
         {
             playerMovement.ApplyJumpBoost();

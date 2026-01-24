@@ -10,6 +10,7 @@ public class PlayerMovement : MonoBehaviour
     [Header("Movement")]
     [SerializeField] private float moveSpeed = 5f;
     [SerializeField] private float jumpForce = 10f;
+    [SerializeField] private float jumpBoostMultiplier = 1.5f;
 
     [Header("Ground Check")]
     [SerializeField] private float groundCheckRadius = 0.2f;
@@ -27,6 +28,7 @@ public class PlayerMovement : MonoBehaviour
     private bool isWaitingAfterKey = false;
     private float waitTimer = 0f;
     private float waitDuration = 0.5f;
+    private bool hasJumpBoost = false;
 
     void Awake()
     {
@@ -90,33 +92,48 @@ public class PlayerMovement : MonoBehaviour
 
     void HandleMovement()
     {
+        // Si en attente après la clé, bloquer tout mouvement
         if (isWaitingAfterKey)
         {
             rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
             direction = 0f;
-            isRunning = false;
             return;
         }
 
+        // Mouvement horizontal normal (ZQSD ou flèches)
         float horizontalInput = Input.GetAxisRaw("Horizontal");
-        rb.linearVelocity = new Vector2(horizontalInput * moveSpeed, rb.linearVelocity.y);
 
-        direction = horizontalInput;
-        isRunning = Mathf.Abs(horizontalInput) > 0.1f;
+        // Toujours permettre le mouvement horizontal
+        if (horizontalInput != 0)
+        {
+            rb.linearVelocity = new Vector2(horizontalInput * moveSpeed, rb.linearVelocity.y);
+            direction = horizontalInput;
+        }
     }
 
     void HandleJump()
     {
-        if (Input.GetButtonDown("Jump") && IsGrounded())
+        if (Input.GetButtonDown("Jump") && CheckIsGrounded())
         {
-            rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
+            float currentJumpForce = hasJumpBoost ? jumpForce * jumpBoostMultiplier : jumpForce;
+            rb.linearVelocity = new Vector2(rb.linearVelocity.x, currentJumpForce);
         }
     }
 
-    bool IsGrounded()
+    bool IsGroundedInternal()
     {
         if (groundCheck == null) return false;
         return Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundLayer);
+    }
+
+    public bool CheckIsGrounded()
+    {
+        return IsGroundedInternal();
+    }
+
+    public bool IsGrounded
+    {
+        get { return IsGroundedInternal(); }
     }
 
     public bool HasKey()
@@ -129,6 +146,11 @@ public class PlayerMovement : MonoBehaviour
         hasKey = true;
         isWaitingAfterKey = true;
         waitTimer = waitDuration;
+    }
+
+    public void PickupKey()
+    {
+        CollectKey();
     }
 
     public bool IsSpawnProtected()
@@ -146,6 +168,32 @@ public class PlayerMovement : MonoBehaviour
     public void ApplySpawnProtection()
     {
         EnableSpawnProtection();
+    }
+
+    public void StartRunning()
+    {
+        isRunning = true;
+    }
+
+    public void ResumeAfterKey()
+    {
+        isWaitingAfterKey = false;
+        waitTimer = 0f;
+    }
+
+    public void ApplyJumpBoost()
+    {
+        hasJumpBoost = true;
+    }
+
+    public void RemoveJumpBoost()
+    {
+        hasJumpBoost = false;
+    }
+
+    public bool HasJumpBoost()
+    {
+        return hasJumpBoost;
     }
 
     public float Direction
