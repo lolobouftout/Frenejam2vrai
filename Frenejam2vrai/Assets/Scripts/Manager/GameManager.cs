@@ -4,103 +4,84 @@ using TMPro;
 
 public class GameManager : MonoBehaviour
 {
-    [Header("Required References")]
-    [SerializeField] private PlayerController player;
+    [Header("References")]
+    [SerializeField] private PlayerMovement playerMovement;
+    [SerializeField] private PlayerDash playerDash;
     [SerializeField] private TextMeshProUGUI instructionsText;
     [SerializeField] private TextMeshProUGUI statusText;
-    //[SerializeField] private Image dashCooldownBar;
+    [SerializeField] private Image dashCooldownBar;
 
     [Header("Instructions")]
-    [SerializeField] private string initialInstructions = "ESPACE : Dash | Pendant Dash : Dash Jump | Maintenir au sol : Accroupir | Maintenir en l'air : Descendre vite";
+    [SerializeField] private string initialInstructions = "ESPACE : Dash pour commencer";
+    [SerializeField] private string runningInstructions = "ESPACE : Dash | Pendant Dash : Dash Jump | Maintenir en l'air : Descendre vite";
     [SerializeField] private string returnInstructions = "RETOUR ! Direction inversée - Survivez si vous pouvez...";
+    [SerializeField] private string waitingAfterKeyInstructions = "ESPACE : Reprendre la course vers le départ...";
 
     //[Header("Cooldown Settings")]
     //[SerializeField] private float maxCooldownDisplay = 0.8f;
     //[SerializeField] private Color cooldownActiveColor = Color.red;
     //[SerializeField] private Color cooldownReadyColor = Color.green;
 
-    private bool hasShownReturnMessage = false;
-
-    void Start()
+    private void Update()
     {
-        ValidateReferences();
-        UpdateUI();
-    }
-
-    void Update()
-    {
-        UpdateUI();
+        UpdateInstructions();
+        UpdateStatus();
         //UpdateCooldownBar();
     }
 
-    void ValidateReferences()
+    private void UpdateInstructions()
     {
-        if (player == null)
-        {
-            Debug.LogError("GameManager: Player reference is missing! Please assign it in the Inspector.");
-        }
+        if (instructionsText == null) return;
 
-        if (instructionsText == null)
-        {
-            Debug.LogWarning("GameManager: Instructions Text is not assigned.");
-        }
-
-        if (statusText == null)
-        {
-            Debug.LogWarning("GameManager: Status Text is not assigned.");
-        }
-
-        //if (dashCooldownBar == null)
-        //{
-        //    Debug.LogWarning("GameManager: Dash Cooldown Bar is not assigned.");
-        //}
-    }
-
-    void UpdateUI()
-    {
-        if (player == null) return;
-
-        if (instructionsText != null && !player.HasKey())
+        if (!playerMovement.IsRunning)
         {
             instructionsText.text = initialInstructions;
         }
-
-        if (instructionsText != null && player.HasKey() && !hasShownReturnMessage)
+        else if (playerMovement.IsWaitingAfterKey)
+        {
+            instructionsText.text = waitingAfterKeyInstructions;
+        }
+        else if (playerMovement.HasKey)
         {
             instructionsText.text = returnInstructions;
-            hasShownReturnMessage = true;
         }
-
-        if (statusText != null)
+        else
         {
-            string dashStatus = player.IsDashing() ? " [DASH!]" : "";
-
-            if (!player.HasKey())
-            {
-                statusText.text = "Objectif : Récupérer la clé " + dashStatus;
-            }
-            else
-            {
-                statusText.text = "Objectif : Retourner au départ  (IMPOSSIBLE)" + dashStatus;
-            }
+            instructionsText.text = runningInstructions;
         }
     }
 
-    //void UpdateCooldownBar()
-    //{
-    //    if (dashCooldownBar == null || player == null) return;
+    private void UpdateStatus()
+    {
+        if (statusText == null) return;
 
-    //    float cooldown = player.GetDashCooldown();
-
-    //    if (cooldown > 0)
-    //    {
-    //        dashCooldownBar.fillAmount = cooldown / maxCooldownDisplay;
-    //        dashCooldownBar.color = cooldownActiveColor;
-    //    }
-    //    else
-    //    {
-    //        dashCooldownBar.fillAmount = 1f;
-    //        dashCooldownBar.color = cooldownReadyColor;
-    //    }
-    //}
+        if (!playerMovement.IsRunning)
+        {
+            statusText.text = "Prêt à commencer";
+        }
+        else if (playerMovement.IsWaitingAfterKey)
+        {
+            statusText.text = "CLÉ RÉCUPÉRÉE ! Appuyez sur ESPACE pour retourner au départ";
+        }
+        else if (playerMovement.HasKey)
+        {
+            statusText.text = "RETOUR AU DÉPART - SURVIVEZ !";
+        }
+        else
+        {
+            statusText.text = "Objectif : Récupérer la clé ?";
+        }
+    }
 }
+
+//    private void UpdateCooldownBar()
+//    {
+//        if (dashCooldownBar == null) return;
+
+//        float cooldown = playerDash.CooldownTimer;
+//        float fillAmount = 1f - Mathf.Clamp01(cooldown / maxCooldownDisplay);
+
+//        dashCooldownBar.fillAmount = fillAmount;
+//        dashCooldownBar.color = cooldown > 0f ? cooldownActiveColor : cooldownReadyColor;
+//    }
+//}
