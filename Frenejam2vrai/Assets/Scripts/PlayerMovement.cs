@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class PlayerController : MonoBehaviour
+public class PlayerMovement : MonoBehaviour
 {
     [Header("Required References")]
     [SerializeField] private Rigidbody2D rb;
@@ -22,6 +22,11 @@ public class PlayerController : MonoBehaviour
     private bool hasKey = false;
     private float spawnProtectionTimer = 0f;
     private bool isSpawnProtected = false;
+    private float direction = 0f;
+    private bool isRunning = false;
+    private bool isWaitingAfterKey = false;
+    private float waitTimer = 0f;
+    private float waitDuration = 0.5f;
 
     void Awake()
     {
@@ -35,7 +40,7 @@ public class PlayerController : MonoBehaviour
             groundLayer = LayerMask.GetMask("Default");
 
         if (groundCheck == null)
-            Debug.LogError("PlayerController: Ground Check Transform is not assigned!");
+            Debug.LogError("PlayerMovement: Ground Check Transform is not assigned!");
 
         EnableSpawnProtection();
     }
@@ -43,6 +48,7 @@ public class PlayerController : MonoBehaviour
     void Update()
     {
         UpdateSpawnProtection();
+        UpdateWaitAfterKey();
         HandleMovement();
         HandleJump();
     }
@@ -55,6 +61,18 @@ public class PlayerController : MonoBehaviour
             if (spawnProtectionTimer <= 0f)
             {
                 isSpawnProtected = false;
+            }
+        }
+    }
+
+    void UpdateWaitAfterKey()
+    {
+        if (isWaitingAfterKey)
+        {
+            waitTimer -= Time.deltaTime;
+            if (waitTimer <= 0f)
+            {
+                isWaitingAfterKey = false;
             }
         }
     }
@@ -72,8 +90,19 @@ public class PlayerController : MonoBehaviour
 
     void HandleMovement()
     {
+        if (isWaitingAfterKey)
+        {
+            rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
+            direction = 0f;
+            isRunning = false;
+            return;
+        }
+
         float horizontalInput = Input.GetAxisRaw("Horizontal");
         rb.linearVelocity = new Vector2(horizontalInput * moveSpeed, rb.linearVelocity.y);
+
+        direction = horizontalInput;
+        isRunning = Mathf.Abs(horizontalInput) > 0.1f;
     }
 
     void HandleJump()
@@ -98,6 +127,8 @@ public class PlayerController : MonoBehaviour
     public void CollectKey()
     {
         hasKey = true;
+        isWaitingAfterKey = true;
+        waitTimer = waitDuration;
     }
 
     public bool IsSpawnProtected()
@@ -108,11 +139,28 @@ public class PlayerController : MonoBehaviour
     public void ResetKey()
     {
         hasKey = false;
+        isWaitingAfterKey = false;
+        waitTimer = 0f;
     }
 
     public void ApplySpawnProtection()
     {
         EnableSpawnProtection();
+    }
+
+    public float Direction
+    {
+        get { return direction; }
+    }
+
+    public bool IsRunning
+    {
+        get { return isRunning; }
+    }
+
+    public bool IsWaitingAfterKey
+    {
+        get { return isWaitingAfterKey; }
     }
 
     void OnCollisionEnter2D(Collision2D collision)
@@ -122,7 +170,7 @@ public class PlayerController : MonoBehaviour
 
         if (collision.gameObject.CompareTag("Trap") || collision.gameObject.CompareTag("Enemy"))
         {
-            TriggerDeath();
+            Die();
         }
     }
 
@@ -140,11 +188,11 @@ public class PlayerController : MonoBehaviour
 
         if (other.CompareTag("Trap") || other.CompareTag("Enemy"))
         {
-            TriggerDeath();
+            Die();
         }
     }
 
-    void TriggerDeath()
+    public void Die()
     {
         if (particleEffect != null)
             particleEffect.PlayDeathEffect();
@@ -164,4 +212,4 @@ public class PlayerController : MonoBehaviour
             Gizmos.DrawWireSphere(groundCheck.position, groundCheckRadius);
         }
     }
-}   
+}

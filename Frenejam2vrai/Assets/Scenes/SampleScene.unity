@@ -559,8 +559,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 16757216ff356c44d811b0b2e21cfd6c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  activeOnlyOnReturn: 0
   player: {fileID: 1620020233}
-  activeOnlyOnReturn: 1
 --- !u!60 &469532159
 PolygonCollider2D:
   m_ObjectHideFlags: 0
@@ -1710,6 +1710,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   playerMovement: {fileID: 1620020233}
+  audioManager: {fileID: 0}
 --- !u!114 &1620020233
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1731,7 +1732,7 @@ MonoBehaviour:
   groundLayer:
     serializedVersion: 2
     m_Bits: 1
-  mainCamera: {fileID: 1200739150}
+  camera: {fileID: 0}
 --- !u!114 &1620020234
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1752,6 +1753,8 @@ MonoBehaviour:
   dashJumpForceMultiplier: 1.7
   dashJumpHorizontalBoost: 10
   dashColor: {r: 1, g: 1, b: 1, a: 1}
+  playerMovement: {fileID: 0}
+  audioManager: {fileID: 0}
 --- !u!1 &1786616822
 GameObject:
   m_ObjectHideFlags: 0
@@ -1927,6 +1930,7 @@ MonoBehaviour:
   runningInstructions: 'ESPACE : Dash | Pendant Dash : Dash Jump | Maintenir en l''air
     : Descendre vite'
   returnInstructions: "RETOUR ! Direction invers\xE9e - Bonne chance..."
+  waitingAfterKeyInstructions: "ESPACE : Reprendre la course vers le d\xE9part..."
 --- !u!4 &2122625397
 Transform:
   m_ObjectHideFlags: 0

@@ -7,13 +7,13 @@ public class PlayerRespawner : MonoBehaviour
     [SerializeField] private Vector3 defaultSpawnOffset = new Vector3(0, 2, 0);
     [SerializeField] private float respawnDelay = 0.1f;
 
-    private PlayerController playerController;
+    private PlayerMovement playerMovement;
     private Rigidbody2D rb;
     private Vector3 initialPosition;
 
     void Awake()
     {
-        playerController = GetComponent<PlayerController>();
+        playerMovement = GetComponent<PlayerMovement>();
         rb = GetComponent<Rigidbody2D>();
         initialPosition = transform.position;
     }
@@ -52,10 +52,10 @@ public class PlayerRespawner : MonoBehaviour
             rb.angularVelocity = 0f;
         }
 
-        if (playerController != null)
+        if (playerMovement != null)
         {
-            playerController.ResetKey();
-            playerController.ApplySpawnProtection();
+            playerMovement.ResetKey();
+            playerMovement.ApplySpawnProtection();
         }
     }
 }
